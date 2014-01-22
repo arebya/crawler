@@ -10,9 +10,14 @@ public class IOUtil {
 		try {
 			File f = new File(file);
 			if (!f.exists()) {
-				f.mkdirs();
+				f.createNewFile();
 			}
-			FileUtils.writeStringToFile(f, content, "UTF-8");
+			String oldContent = FileUtils.readFileToString(f, "UTF-8");
+			StringBuffer buffer = new StringBuffer(oldContent);
+			if (content != null ) {
+				buffer.append(content);
+			}
+			FileUtils.writeStringToFile(f, buffer.toString(), "UTF-8");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

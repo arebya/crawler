@@ -1,17 +1,13 @@
 package com.simple.crawler;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import com.simple.file.IOUtil;
-import com.simple.httpclient.CustomerHttpClient;
 import com.simple.jsoup.JsoupUtil;
 
 public class SingleThreadCrawler {
@@ -23,45 +19,24 @@ public class SingleThreadCrawler {
 	 * @throws InterruptedException
 	 */
 	public static void main(String[] args) {
+		String id = "2189702487";
 		// 贴吧地址
-		String tiebaUrl = TB + "/p/2036977261?pn=19";
+		String tiebaUrl = TB + "/p/" + id;
 		try {
 			Document doc = JsoupUtil.getDocByUrl(tiebaUrl);
 			// 抓取帖子总页数、总帖子数
-			Elements footer = doc.select(".th_footer_l .red");
-			// 获取第一个元素，即帖子总数
-			int tieziNum = Integer.parseInt(footer.get(0).text());
-			// 获取分页数
-			int pageNum = 0;
-			if (tieziNum % 50 == 0) {
-				pageNum = tieziNum / 50;
-			} else {
-				pageNum = 1 + tieziNum / 50;
-			}
+			Elements header = doc.select(".l_posts_num .red");
+			// 页数
+			int pageNum = Integer.parseInt(header.get(0).text());
 			System.out.println("本贴吧总页数：" + pageNum);
-			// 存放所有帖子集合
-			List<String> tieziList = new ArrayList<String>();
-
-			for (int i = 0; i < pageNum; i++) {
-
-				String pageUrl = tiebaUrl + "&pn=" + String.valueOf(i * 50);// 每一页url
-				String pageHtml = CustomerHttpClient.get(pageUrl);
-				Document pageDoc = Jsoup.parse(pageHtml);
-				Elements ties = pageDoc.select("a.j_th_tit");
-				for (Element link : ties) {
-					String linkHref = link.attr("href");
-					tieziList.add(linkHref);
-				}
-
-			}
-			System.out.println("遍历到的有效帖子总数：" + tieziList.size());
-			if (null != tieziList && tieziList.size() > 0) {
-				for (int i = 0; i < tieziList.size(); i++) {
-					String tieziUrl = TB + (String) tieziList.get(i);
-					String nextTieziUrl = findTieziNextPageUrl(tieziUrl);
-					while (!"nomore".equals(nextTieziUrl)) {
-						nextTieziUrl = findTieziNextPageUrl(nextTieziUrl);
-					}
+			// 帖子数
+			int postNum = Integer.parseInt(header.get(1).text());
+			System.out.println("本贴吧总页数：" + postNum);
+			for (int i = 1; i <= pageNum; i++) {
+				String pageUrl = tiebaUrl + "?pn=" + String.valueOf(i);// 每一页url
+				String next = findTieziNextPageUrl(pageUrl, pageNum, id);
+				while (!"nomore".equals(next)) {
+					next = findTieziNextPageUrl(next, pageNum, id);
 				}
 			}
 		} catch (Exception e) {
@@ -76,25 +51,34 @@ public class SingleThreadCrawler {
 	 * @param tieziPageUrl
 	 * @return
 	 */
-	public static String findTieziNextPageUrl(String tieziPageUrl) {
+	public static String findTieziNextPageUrl(String tieziPageUrl, int pageNum,
+			String id) {
 		String nextUrl = "nomore";// 单页或者尾页
 		Document doc = JsoupUtil.getDocByUrl(tieziPageUrl);
 		if (null != doc) {
 			System.out.println("进入帖子：" + tieziPageUrl);
 			// 放入文件
-			getMails(doc.toString());
-
+			getMails(doc.toString(), id);
 			Elements l_pager = doc.select("li.l_pager a");
-			for (Element link : l_pager) {
-				String linkHref = link.attr("href");
-				String linkText = link.text();
-				if ("下一页".equals(linkText)) {
-					nextUrl = TB + linkHref;
+			Elements l_tp = doc.select("li.l_pager span");
+			String tp = l_tp.get(0).text();
+			if (String.valueOf(pageNum).equals(tp)) {
+				return nextUrl;
+			} else {
+				for (Element link : l_pager) {
+					String linkHref = link.attr("href");
+					String linkText = link.text();
+					if ("下一页".equals(linkText)) {
+						nextUrl = TB + linkHref;
+						break;
+					}
 				}
+				return nextUrl;
 			}
-		}
 
+		}
 		return nextUrl;
+
 	}
 
 	/**
@@ -102,14 +86,15 @@ public class SingleThreadCrawler {
 	 * 
 	 * @param html
 	 */
-	public static void getMails(String html) {
+	public static void getMails(String html, String id) {
 		try {
 			String regex = "\\w+@\\w+(\\.[a-zA-Z]+)+"; // 匹配邮箱地址
 			Pattern p = Pattern.compile(regex); // 把正则封装成对象
 			if (null != html) {
 				Matcher m = p.matcher(html);
 				while (m.find()) {
-					IOUtil.writeTofile("mails.txt", m.group() + ";");// 把获取到的邮箱存到文件中
+					IOUtil.writeTofile("D:/tieba/" + id + ".txt", m.group()
+							+ ";");// 把获取到的邮箱存到文件中
 				}
 			}
 			System.out.println("收集邮箱地址完成……");
